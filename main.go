@@ -1,15 +1,26 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
-	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/Sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
+	multilog "github.com/learnin/go-multilog"
 	"github.com/hashicorp/hcl"
+	"github.com/zenazn/goji"
+	"github.com/zenazn/goji/web"
 )
+
+type AppContext struct {
+	config Config
+	logger *multilog.MultiLogger
+}
 
 type Config struct {
 	Start    time.Time
@@ -17,6 +28,13 @@ type Config struct {
 	Affected string
 	Breach   Breach
 	Web      Web
+}
+
+// ToString()
+func (config Config) String() string {
+	format := "Config(Start=%v, End=%v, Affected=%v)"
+	str := fmt.Sprintf(format, config.Start, config.End, config.Affected)
+	return str
 }
 
 type Scope struct {
@@ -37,6 +55,14 @@ type Breach struct {
 	Token          bool `hcl:"token"`
 }
 
+// ToString()
+func (breach Breach) String() string {
+	format := "Breach(DefacedMalware=%v, Address=%v, Name=%v, Gender=%v, Birthday=%v, Tel=%v, Card=%v, Securitycode=%v, Token=%v)"
+	str := fmt.Sprintf(format, breach.DefacedMalware, breach.Address, breach.Name, breach.Gender, breach.Birthday, breach.Tel, breach.Card, breach.Securitycode, breach.Token)
+
+	return str
+}
+
 type Web struct {
 	Endpoint string
 }
@@ -46,6 +72,8 @@ const timeformat = "2006-01-02 15:04:05 -0700"
 
 // Parse config file.
 func parseConfig(configPath string) (config Config, err error) {
+	log.WithFields(log.Fields{"configPath": configPath}).Debug("Parse config start")
+
 	path, err := filepath.Abs(configPath)
 	if err != nil {
 		log.Fatalf("%v", err)
@@ -102,31 +130,63 @@ func parseConfig(configPath string) (config Config, err error) {
 	config.Affected = scope.Affected
 	config.Breach = breach
 	config.Web = web
+	log.WithFields(log.Fields{"config": config}).Debug("Config")
+
+	log.WithFields(log.Fields{"configPath": configPath}).Debug("Parse config end")
 
 	return config, nil
 }
 
-func run(address string, port int, config Config) {
+func (ctx AppContext) showPage(c web.C, w http.ResponseWriter, r *http.Request) {
+	fmt.Println(ctx.config.Start)
 
 }
 
-func runserver(c *cli.Context) {
-	// HTTP server address(default is 127.0.0.1).
-	address := c.String("bind")
+func setupLogger(logLevel string) *multilog.MultiLogger {
+	level, err := logrus.ParseLevel(logLevel)
+	if err != nil {
+		log.Fatalf("Log level error %v", err)
+	}
 
-	// HTTP Port(default is 8000).
-	port := c.Int("port")
+	logf, _ := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	fileLogger := logrus.New()
+	fileLogger.Level = level
+	fileLogger.Out = logf
+	fileLogger.Formatter = &logrus.TextFormatter{DisableColors: true}
+	fileLogger.Level = logrus.DebugLevel
+
+	stdOutLogger := logrus.New()
+	stdOutLogger.Formatter = &logrus.TextFormatter{DisableColors: false}
+	stdOutLogger.Level = logrus.WarnLevel
+
+	log := multilog.New(stdOutLogger, fileLogger)
+
+	return log
+}
+
+func run(appName, address string, logger *multilog.MultiLogger, config Config) {
+	ctx := AppContext{config, logger}
+	goji.Get(config.Web.Endpoint, ctx.showPage)
+	goji.Serve()
+}
+
+func runserver(c *cli.Context) {
+	logger := setupLogger(c.String("verbose"))
+	// HTTP server address(default is 127.0.0.1).
+	address := c.GlobalString("bind")
 
 	// Parse config.
-	configPath := "setting.hlc"
-	if c.GlobalString("conf") != "" {
-		configPath = c.GlobalString("conf")
-	}
-	config, err := parseConfig(configPath)
-	if err != nil {
+	configPath := "setting.hcl"
+	if c.String("conf") != "" {
+		configPath = c.String("conf")
 	}
 
-	run(address, port, config)
+	config, err := parseConfig(configPath)
+	if err != nil {
+		log.Fatalf("Parse config error %v", err)
+	}
+
+	run(c.App.Name, address, logger, config)
 }
 
 func main() {
@@ -137,7 +197,9 @@ func main() {
 	app.Version = "0.0.1"
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
-			Name: "conf, c", Usage: "use configuration file",
+			Name:  "bind, b",
+			Usage: "HTTP server address.",
+			Value: "127.0.0.1:8000",
 		},
 	}
 	app.Commands = []cli.Command{
@@ -146,14 +208,14 @@ func main() {
 			Usage: "Run http server.",
 			Flags: []cli.Flag{
 				cli.StringFlag{
-					Name:  "bind, b",
-					Usage: "HTTP server address.",
-					Value: "127.0.0.1",
+					Name:  "conf, c",
+					Usage: "use configuration file",
+					Value: "setting.hcl",
 				},
-				cli.IntFlag{
-					Name:  "port, p",
-					Usage: "HTTP server port.",
-					Value: 8000,
+				cli.StringFlag{
+					Name:  "verbose, vv",
+					Usage: "Logger verbose",
+					Value: log.InfoLevel.String(),
 				},
 			},
 			Action: runserver,
