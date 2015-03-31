@@ -2,24 +2,26 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
 	"time"
+	"log"
 
 	"github.com/Sirupsen/logrus"
-	log "github.com/Sirupsen/logrus"
+	//log "github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
-	multilog "github.com/learnin/go-multilog"
 	"github.com/hashicorp/hcl"
 	"github.com/zenazn/goji"
 	"github.com/zenazn/goji/web"
 )
 
 type AppContext struct {
-	config Config
-	logger *multilog.MultiLogger
+	appName string
+	config  Config
+	logger  *logrus.Logger
 }
 
 type Config struct {
@@ -71,102 +73,99 @@ type Web struct {
 const timeformat = "2006-01-02 15:04:05 -0700"
 
 // Parse config file.
-func parseConfig(configPath string) (config Config, err error) {
-	log.WithFields(log.Fields{"configPath": configPath}).Debug("Parse config start")
+func parseConfig(appContex AppContext, configPath string) (config Config, err error) {
+	logger := appContex.logger
+	logger.WithFields(logrus.Fields{"configPath": configPath}).Debug("Parse config start")
 
 	path, err := filepath.Abs(configPath)
 	if err != nil {
-		log.Fatalf("%v", err)
+		logger.Fatalf("%v", err)
 		return Config{}, err
 	}
 	_, err = os.Stat(path)
 	if err != nil {
 		// File not found.
-		log.Fatalf("%v", err)
+		logger.Fatalf("%v", err)
 		return Config{}, err
 	}
 
 	d, err := ioutil.ReadFile(path)
 	if err != nil {
 		// Fail to load
-		log.Fatalf("%v", err)
+		logger.Fatalf("%v", err)
 		return Config{}, err
 	}
 
 	obj, err := hcl.Parse(string(d))
 	if err != nil {
-		log.Fatalf("%v", err)
+		logger.Fatalf("%v", err)
 		return Config{}, err
 	}
 
 	var scope Scope
 	if err := hcl.DecodeObject(&scope, obj.Get("scope", false)); err != nil {
-		log.Fatalf("%v", err)
+		logger.Fatalf("%v", err)
 		return Config{}, err
 	}
 
 	var breach Breach
 	if err := hcl.DecodeObject(&breach, obj.Get("breach", false)); err != nil {
-		log.Fatalf("%v", err)
+		logger.Fatalf("%v", err)
 		return Config{}, err
 	}
 
 	var web Web
 	if err := hcl.DecodeObject(&web, obj.Get("web", false)); err != nil {
-		log.Fatalf("%v", err)
+		logger.Fatalf("%v", err)
 		return Config{}, err
 	}
 
 	config.Start, err = time.Parse(timeformat, scope.Start)
 	if err != nil {
-		log.Fatalf("%v", err)
+		logger.Fatalf("%v", err)
 	}
 	config.End, err = time.Parse(timeformat, scope.End)
 	if err != nil {
-		log.Fatalf("%v", err)
+		logger.Fatalf("%v", err)
 		return Config{}, err
 	}
 
 	config.Affected = scope.Affected
 	config.Breach = breach
 	config.Web = web
-	log.WithFields(log.Fields{"config": config}).Debug("Config")
+	logger.WithFields(logrus.Fields{"config": config}).Debug("Config")
 
-	log.WithFields(log.Fields{"configPath": configPath}).Debug("Parse config end")
+	logger.WithFields(logrus.Fields{"configPath": configPath}).Debug("Parse config end")
 
 	return config, nil
 }
 
 func (ctx AppContext) showPage(c web.C, w http.ResponseWriter, r *http.Request) {
-	fmt.Println(ctx.config.Start)
+	//fmt.Println(ctx.config.Start)
+	ctx.logger.Info(ctx.config.Start)
 
 }
 
-func setupLogger(logLevel string) *multilog.MultiLogger {
+func setupLogger(logLevel string) *logrus.Logger {
 	level, err := logrus.ParseLevel(logLevel)
 	if err != nil {
 		log.Fatalf("Log level error %v", err)
 	}
 
 	logf, _ := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	fileLogger := logrus.New()
-	fileLogger.Level = level
-	fileLogger.Out = logf
-	fileLogger.Formatter = &logrus.TextFormatter{DisableColors: true}
-	fileLogger.Level = logrus.DebugLevel
 
-	stdOutLogger := logrus.New()
-	stdOutLogger.Formatter = &logrus.TextFormatter{DisableColors: false}
-	stdOutLogger.Level = logrus.WarnLevel
+	out := io.MultiWriter(os.Stdout, logf)
+	logger := logrus.Logger{
+		Formatter: &logrus.TextFormatter{DisableColors: true},
+		Level: level,
+		Out: out,
+	}
 
-	log := multilog.New(stdOutLogger, fileLogger)
-
-	return log
+	return &logger
 }
 
-func run(appName, address string, logger *multilog.MultiLogger, config Config) {
-	ctx := AppContext{config, logger}
-	goji.Get(config.Web.Endpoint, ctx.showPage)
+func run(ctx AppContext, address string) {
+	goji.Get(ctx.config.Web.Endpoint, ctx.showPage)
 	goji.Serve()
 }
 
@@ -181,12 +180,14 @@ func runserver(c *cli.Context) {
 		configPath = c.String("conf")
 	}
 
-	config, err := parseConfig(configPath)
+	ctx := AppContext{c.App.Name, Config{}, logger}
+	config, err := parseConfig(ctx, configPath)
 	if err != nil {
-		log.Fatalf("Parse config error %v", err)
+		logger.Fatalf("Parse config error %v", err)
 	}
+	ctx.config = config
 
-	run(c.App.Name, address, logger, config)
+	run(ctx, address)
 }
 
 func main() {
@@ -215,7 +216,7 @@ func main() {
 				cli.StringFlag{
 					Name:  "verbose, vv",
 					Usage: "Logger verbose",
-					Value: log.InfoLevel.String(),
+					Value: logrus.InfoLevel.String(),
 				},
 			},
 			Action: runserver,
