@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"time"
-	"log"
 
 	"github.com/Sirupsen/logrus"
-	//log "github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
 	"github.com/hashicorp/hcl"
 	"github.com/zenazn/goji"
@@ -73,77 +72,93 @@ type Web struct {
 const timeformat = "2006-01-02 15:04:05 -0700"
 
 // Parse config file.
-func parseConfig(appContex AppContext, configPath string) (config Config, err error) {
+func parseConfig(appContex *AppContext, configPath string) (err error) {
 	logger := appContex.logger
 	logger.WithFields(logrus.Fields{"configPath": configPath}).Debug("Parse config start")
 
 	path, err := filepath.Abs(configPath)
 	if err != nil {
 		logger.Fatalf("%v", err)
-		return Config{}, err
+		return err
 	}
 	_, err = os.Stat(path)
 	if err != nil {
 		// File not found.
 		logger.Fatalf("%v", err)
-		return Config{}, err
+		return err
 	}
 
 	d, err := ioutil.ReadFile(path)
 	if err != nil {
 		// Fail to load
 		logger.Fatalf("%v", err)
-		return Config{}, err
+		return err
 	}
 
 	obj, err := hcl.Parse(string(d))
 	if err != nil {
 		logger.Fatalf("%v", err)
-		return Config{}, err
+		return err
 	}
 
 	var scope Scope
 	if err := hcl.DecodeObject(&scope, obj.Get("scope", false)); err != nil {
 		logger.Fatalf("%v", err)
-		return Config{}, err
+		return err
 	}
 
 	var breach Breach
 	if err := hcl.DecodeObject(&breach, obj.Get("breach", false)); err != nil {
 		logger.Fatalf("%v", err)
-		return Config{}, err
+		return err
 	}
 
 	var web Web
 	if err := hcl.DecodeObject(&web, obj.Get("web", false)); err != nil {
 		logger.Fatalf("%v", err)
-		return Config{}, err
+		return err
 	}
 
+	config := Config{}
 	config.Start, err = time.Parse(timeformat, scope.Start)
 	if err != nil {
 		logger.Fatalf("%v", err)
+		return err
 	}
 	config.End, err = time.Parse(timeformat, scope.End)
 	if err != nil {
 		logger.Fatalf("%v", err)
-		return Config{}, err
+		return err
 	}
 
 	config.Affected = scope.Affected
 	config.Breach = breach
 	config.Web = web
-	logger.WithFields(logrus.Fields{"config": config}).Debug("Config")
+	appContex.config = config
 
+	logger.WithFields(logrus.Fields{"config": config}).Debug("Config")
 	logger.WithFields(logrus.Fields{"configPath": configPath}).Debug("Parse config end")
 
-	return config, nil
+	return nil
 }
 
 func (ctx AppContext) showPage(c web.C, w http.ResponseWriter, r *http.Request) {
-	//fmt.Println(ctx.config.Start)
-	ctx.logger.Info(ctx.config.Start)
+	logger := ctx.logger
+	now := time.Now()
+	logger.WithFields(logrus.Fields{"now": now}).Debug("Current time is")
 
+	if now.After(ctx.config.Start) && now.Before(ctx.config.End) {
+		logger.Info(now)
+
+	} else {
+		// Out of date time.
+		logger.WithFields(
+			logrus.Fields{
+				"Start": ctx.config.Start,
+				"End":   ctx.config.End,
+			},
+		).Info("Current time is out of date.")
+	}
 }
 
 func setupLogger(logLevel string) *logrus.Logger {
@@ -157,9 +172,10 @@ func setupLogger(logLevel string) *logrus.Logger {
 	out := io.MultiWriter(os.Stdout, logf)
 	logger := logrus.Logger{
 		Formatter: &logrus.TextFormatter{DisableColors: true},
-		Level: level,
-		Out: out,
+		Level:     level,
+		Out:       out,
 	}
+	logger.Info("Set up log finished.")
 
 	return &logger
 }
@@ -181,11 +197,10 @@ func runserver(c *cli.Context) {
 	}
 
 	ctx := AppContext{c.App.Name, Config{}, logger}
-	config, err := parseConfig(ctx, configPath)
+	err := parseConfig(&ctx, configPath)
 	if err != nil {
 		logger.Fatalf("Parse config error %v", err)
 	}
-	ctx.config = config
 
 	run(ctx, address)
 }
