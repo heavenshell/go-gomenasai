@@ -12,6 +12,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
+	"github.com/flosch/pongo2"
 	"github.com/hashicorp/hcl"
 	"github.com/zenazn/goji"
 	"github.com/zenazn/goji/web"
@@ -181,6 +182,10 @@ func setupLogger(logLevel string) *logrus.Logger {
 }
 
 func run(ctx AppContext, address string) {
+	pongo2.DefaultSet.SetBaseDirectory("templates")
+	pongo2.Globals["config"] = ctx.config
+
+	goji.Get("/assets/*", http.FileServer(http.Dir(".")))
 	goji.Get(ctx.config.Web.Endpoint, ctx.showPage)
 	goji.Serve()
 }
