@@ -1,6 +1,6 @@
 "scope" {
     start = "2015-04-01 00:00:00 +0900" // +0900 is JST
-    end = "2015-04-02 00:00:00 +0900"   // +0900 is JST
+    end = "2015-05-02 00:00:00 +0900"   // +0900 is JST
     affected = "Database, Mailserver"
 }
 

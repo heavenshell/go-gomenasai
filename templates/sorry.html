@@ -7,7 +7,22 @@
   </head>
   <body>
     <div id="content">
-      <h1 class="title">Wiki Pages</h1>
+      <p>
+        この度、弊社ウェブサイトに第三者からの不正なアクセスがあり、ウェブサイトが改ざんされていたことがわかりました。ご利用の皆様にはご迷惑をお掛けしましたことを心よりお詫び申し上げます。
+      </p>
+      <h2>改ざんされた期間</h2>
+      <p>
+        {{ config.Start | localdate | date: "2006 年 01 月 02 日 03 時" }} ごろから{{ config.End | localdate | date: "2006 年 01 月 02 日 03 時" }} ごろまで
+      </p>
+      <h2>影響範囲</h2>
+      <p>{{ config.Affected }}</p>
+
+      {% if config.Breach.DefacedMalware %}
+      <h2>お客様へのお願い</h2>
+      <p>当該期間にアクセスした可能性のある方は、お手数ですが最新の状態にアップデートしたウイルス対策ソフトにて駆除をお願いいたします。</P>
+      {% else %}
+      <p>アクセスしたことによるウィルスの感染は確認されておりません。</p>
+      {% endif %}
     </div>
   </body>
 </html>
