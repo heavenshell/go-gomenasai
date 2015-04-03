@@ -150,6 +150,12 @@ func (ctx AppContext) showPage(c web.C, w http.ResponseWriter, r *http.Request) 
 
 	if now.After(ctx.config.Start) && now.Before(ctx.config.End) {
 		logger.Info(now)
+		tpl, err := pongo2.DefaultSet.FromFile("sorry.html")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		tpl.ExecuteWriter(pongo2.Context{}, w)
 
 	} else {
 		// Out of date time.
@@ -159,6 +165,7 @@ func (ctx AppContext) showPage(c web.C, w http.ResponseWriter, r *http.Request) 
 				"End":   ctx.config.End,
 			},
 		).Info("Current time is out of date.")
+		http.Error(w, "404 Not found.", http.StatusNotFound)
 	}
 }
 
@@ -184,6 +191,17 @@ func setupLogger(logLevel string) *logrus.Logger {
 func run(ctx AppContext, address string) {
 	pongo2.DefaultSet.SetBaseDirectory("templates")
 	pongo2.Globals["config"] = ctx.config
+
+	pongo2.RegisterFilter("localdate", func(in *pongo2.Value, param *pongo2.Value) (out *pongo2.Value, err *pongo2.Error) {
+		date, ok := in.Interface().(time.Time)
+		if !ok {
+			return nil, &pongo2.Error{
+				Sender:   "localdate",
+				ErrorMsg: fmt.Sprintf("Date must be of type time.Time not %T ('%v')", in, in),
+			}
+		}
+		return pongo2.AsValue(date.Local()), nil
+	})
 
 	goji.Get("/assets/*", http.FileServer(http.Dir(".")))
 	goji.Get(ctx.config.Web.Endpoint, ctx.showPage)
