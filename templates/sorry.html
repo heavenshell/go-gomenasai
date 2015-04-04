@@ -23,6 +23,33 @@
       {% else %}
       <p>アクセスしたことによるウィルスの感染は確認されておりません。</p>
       {% endif %}
+
+      {% if len(breach) == 0 %}
+        <p>個人情報の漏洩は現在のところ確認されていません</p>
+      {% else %}
+        <h2>漏えいした個人情報</h2>
+        <ul>
+        {% for v in breach %}
+          {% if v == "Address" %}
+          <li>住所</li>
+          {% elif v == "Birthday" %}
+          <li>誕生日</li>
+          {% elif v == "Tel" %}
+          <li>電話番号</li>
+          {% elif v == "Card" %}
+          <li>クレジット番号</li>
+          {% elif v == "Name" %}
+          <li>氏名</li>
+          {% elif v == "Gender" %}
+          <li>性別</li>
+          {% elif v == "Securitycode" %}
+          <li>セキュリティコード</li>
+          {% elif v == "Token" %}
+          <li>アクセストークン</li>
+          {% endif %}
+        {% endfor %}
+        </ul>
+      {% endif %}
     </div>
   </body>
 </html>
