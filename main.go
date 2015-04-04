@@ -12,6 +12,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
+	"github.com/fatih/structs"
 	"github.com/flosch/pongo2"
 	"github.com/hashicorp/hcl"
 	"github.com/zenazn/goji"
@@ -155,7 +156,21 @@ func (ctx AppContext) showPage(c web.C, w http.ResponseWriter, r *http.Request) 
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		tpl.ExecuteWriter(pongo2.Context{}, w)
+		m := structs.Map(ctx.config.Breach)
+		breach := make([]string, 0)
+		i := 0
+		for k, v := range m {
+			if k == "DefacedMalware" {
+				continue
+			}
+			if v == true {
+				breach = append(breach, k)
+				i++
+			}
+		}
+		logger.Info(len(breach))
+
+		tpl.ExecuteWriter(pongo2.Context{"breach": breach}, w)
 
 	} else {
 		// Out of date time.
