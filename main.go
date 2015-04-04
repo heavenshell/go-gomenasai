@@ -158,14 +158,12 @@ func (ctx AppContext) showPage(c web.C, w http.ResponseWriter, r *http.Request) 
 		}
 		m := structs.Map(ctx.config.Breach)
 		breach := make([]string, 0)
-		i := 0
 		for k, v := range m {
 			if k == "DefacedMalware" {
 				continue
 			}
 			if v == true {
 				breach = append(breach, k)
-				i++
 			}
 		}
 		logger.Info(len(breach))
