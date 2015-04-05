@@ -21,7 +21,6 @@ import (
 )
 
 type AppContext struct {
-	appName string
 	config  Config
 	logger  *logrus.Logger
 }
@@ -237,7 +236,7 @@ func runserver(c *cli.Context) {
 		configPath = c.String("conf")
 	}
 
-	ctx := AppContext{c.App.Name, Config{}, logger}
+	ctx := AppContext{Config{}, logger}
 	err := parseConfig(&ctx, configPath)
 	if err != nil {
 		logger.Fatalf("Parse config error %v", err)
