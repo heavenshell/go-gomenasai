@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/zenazn/goji"
 	"github.com/zenazn/goji/web"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 type AppContext struct {
@@ -188,7 +189,11 @@ func setupLogger(logLevel string) *logrus.Logger {
 		log.Fatalf("Log level error %v", err)
 	}
 
-	logf, _ := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	logf := &lumberjack.Logger{
+		Filename: "app.log",
+		MaxSize:  1,
+		MaxAge:   31,
+	}
 
 	out := io.MultiWriter(os.Stdout, logf)
 	logger := logrus.Logger{
