@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -21,8 +22,8 @@ import (
 )
 
 type AppContext struct {
-	config  Config
-	logger  *logrus.Logger
+	config Config
+	logger *logrus.Logger
 }
 
 type Config struct {
@@ -147,12 +148,12 @@ func parseConfig(appContex *AppContext, configPath string) (err error) {
 func (ctx AppContext) showPage(c web.C, w http.ResponseWriter, r *http.Request) {
 	logger := ctx.logger
 	now := time.Now()
-	logger.WithFields(logrus.Fields{"now": now}).Debug("Current time is")
+	logger.Debug(fmt.Sprintf("Current time is %v", now))
 
 	if now.After(ctx.config.Start) && now.Before(ctx.config.End) {
-		logger.Info(now)
 		tpl, err := pongo2.DefaultSet.FromFile("sorry.html")
 		if err != nil {
+			logger.Error(err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -166,7 +167,6 @@ func (ctx AppContext) showPage(c web.C, w http.ResponseWriter, r *http.Request) 
 				breach = append(breach, k)
 			}
 		}
-		logger.Info(len(breach))
 
 		tpl.ExecuteWriter(pongo2.Context{"breach": breach}, w)
 
@@ -188,24 +188,30 @@ func setupLogger(logLevel string) *logrus.Logger {
 		log.Fatalf("Log level error %v", err)
 	}
 
+	path, err := filepath.Abs("logs/app.log")
+	if err != nil {
+		log.Fatalf("Log level error %v", err)
+	}
 	logf := &lumberjack.Logger{
-		Filename: "app.log",
-		MaxSize:  1,
-		MaxAge:   31,
+		Filename: path,
 	}
 
 	out := io.MultiWriter(os.Stdout, logf)
 	logger := logrus.Logger{
-		Formatter: &logrus.TextFormatter{DisableColors: true},
+		//Formatter: &logrus.TextFormatter{DisableColors: false},
+		Formatter: &logrus.JSONFormatter{},
 		Level:     level,
 		Out:       out,
 	}
-	logger.Info("Set up log finished.")
+	logger.Info("Setup log finished.")
 
 	return &logger
 }
 
 func run(ctx AppContext, address string) {
+	logger := ctx.logger
+	logger.Info(fmt.Sprintf("Go runtime version is %s", runtime.Version()))
+
 	pongo2.DefaultSet.SetBaseDirectory("templates")
 	pongo2.Globals["config"] = ctx.config
 
