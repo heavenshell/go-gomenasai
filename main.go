@@ -194,6 +194,9 @@ func setupLogger(logLevel string) *logrus.Logger {
 	}
 	logf := &lumberjack.Logger{
 		Filename: path,
+		MaxSize:    20,
+		MaxBackups: 5,
+		MaxAge:     28,
 	}
 
 	out := io.MultiWriter(os.Stdout, logf)
