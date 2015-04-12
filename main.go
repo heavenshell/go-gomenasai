@@ -16,9 +16,9 @@ import (
 	"github.com/fatih/structs"
 	"github.com/flosch/pongo2"
 	"github.com/hashicorp/hcl"
+	"github.com/lestrrat/go-file-rotatelogs"
 	"github.com/zenazn/goji"
 	"github.com/zenazn/goji/web"
-	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 type AppContext struct {
@@ -188,18 +188,16 @@ func setupLogger(logLevel string) *logrus.Logger {
 		log.Fatalf("Log level error %v", err)
 	}
 
-	path, err := filepath.Abs("logs/app.log")
+	path, err := filepath.Abs("logs/app.log.%Y%m%d")
 	if err != nil {
 		log.Fatalf("Log level error %v", err)
 	}
-	logf := &lumberjack.Logger{
-		Filename: path,
-		MaxSize:    20,
-		MaxBackups: 5,
-		MaxAge:     28,
-	}
+	rl := rotatelogs.NewRotateLogs(path)
+	rl.RotationTime = 86400 * time.Second
+	rl.MaxAge = 86400 * time.Second
+	rl.Offset = 0
 
-	out := io.MultiWriter(os.Stdout, logf)
+	out := io.MultiWriter(os.Stdout, rl)
 	logger := logrus.Logger{
 		//Formatter: &logrus.TextFormatter{DisableColors: false},
 		Formatter: &logrus.JSONFormatter{},
