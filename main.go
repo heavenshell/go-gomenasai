@@ -213,7 +213,7 @@ func setupLogger(logLevel string) *logrus.Logger {
 
 func run(ctx AppContext, address string) {
 	logger := ctx.logger
-	logger.Info(fmt.Sprintf("Go runtime version is %s", runtime.Version()))
+	logger.Infof("Go runtime version is %s", runtime.Version())
 
 	pongo2.DefaultSet.SetBaseDirectory("templates")
 	pongo2.Globals["config"] = ctx.config
