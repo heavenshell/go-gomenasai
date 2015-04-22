@@ -193,9 +193,11 @@ func setupLogger(logLevel string) *logrus.Logger {
 		log.Fatalf("Log level error %v", err)
 	}
 	rl := rotatelogs.NewRotateLogs(path)
-	rl.RotationTime = 86400 * time.Second
-	rl.MaxAge = 86400 * time.Second
-	rl.Offset = 0
+
+	rl.LinkName = "logs/app.log"
+	rl.RotationTime = 3600 * time.Second
+	//rl.MaxAge = 86400 * time.Second
+	rl.Offset = (9 * 60 * 60) * time.Second // Time zone `9 * 60 * 60` is Asia/Tokyo.
 
 	out := io.MultiWriter(os.Stdout, rl)
 	logger := logrus.Logger{
