@@ -148,7 +148,7 @@ func parseConfig(appContex *AppContext, configPath string) (err error) {
 func (ctx AppContext) showPage(c web.C, w http.ResponseWriter, r *http.Request) {
 	logger := ctx.logger
 	now := time.Now()
-	logger.Debug(fmt.Sprintf("Current time is %v", now))
+	logger.Debugf("Current time is %v", now)
 
 	if now.After(ctx.config.Start) && now.Before(ctx.config.End) {
 		tpl, err := pongo2.DefaultSet.FromFile("sorry.html")
